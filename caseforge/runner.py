@@ -13,9 +13,11 @@ from typing import Any
 import requests
 
 from .assertions import AssertionFailure, evaluate
-from .models import Case, CaseResult, Step, StepResult
+from .jsonpath import query
+from .models import Assertion, Case, CaseResult, Step, StepResult
 
 _VAR = re.compile(r"\$\{\{\s*([A-Za-z0-9_][A-Za-z0-9_.\-]*)\s*\}\}")
+_EXACT_VAR = re.compile(r"^\$\{\{\s*([A-Za-z0-9_][A-Za-z0-9_.\-]*)\s*\}\}$")
 
 
 class VariableMissing(KeyError):
@@ -25,9 +27,18 @@ class VariableMissing(KeyError):
 def interpolate(value: Any, context: dict[str, Any]) -> Any:
     """把 `${{ name }}` 替换成上下文里的值。
 
-    只做字符串替换，不做表达式求值 —— 用例里出现计算逻辑，说明设计有问题。
+    - 整个字符串只有一个占位符时，返回原始类型（不把数字变成字符串）
+    - 混合文本时按字符串拼接
+    - 不做表达式求值：用例里出现计算逻辑，说明设计有问题
     """
     if isinstance(value, str):
+        exact = _EXACT_VAR.match(value)
+        if exact:
+            key = exact.group(1)
+            if key not in context:
+                raise VariableMissing(f"变量未定义: ${{{{ {key} }}}}，当前可用: {sorted(context)}")
+            return context[key]
+
         def repl(match: re.Match) -> str:
             key = match.group(1)
             if key not in context:
@@ -90,11 +101,10 @@ def _run_step(step: Step, base_url: str, context: dict[str, Any], session: reque
         result.snippet = (response.text or "").replace("\n", " ")[:200]
 
         for assertion in step.assertions:
-            evaluate(assertion, response, (time.perf_counter() - started) * 1000)
+            resolved = Assertion(kind=assertion.kind, raw=interpolate(assertion.raw, context))
+            evaluate(resolved, response, (time.perf_counter() - started) * 1000)
 
         for var_name, expr in step.extract.items():
-            from .jsonpath import query
-
             context[var_name] = query(response.json(), expr)
             result.extracted[var_name] = context[var_name]
 

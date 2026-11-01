@@ -34,3 +34,12 @@ def test_non_string_untouched():
     assert interpolate(42, {}) == 42
     assert interpolate(None, {}) is None
     assert interpolate(True, {}) is True
+
+
+def test_exact_placeholder_preserves_type():
+    """整串只有一个占位符时保留原始类型，否则 `equals: 90` 会拿字符串和数字比。"""
+    assert interpolate("${{ n }}", {"n": 90}) == 90
+    assert interpolate("${{ flag }}", {"flag": True}) is True
+    assert interpolate("${{ obj }}", {"obj": {"a": 1}}) == {"a": 1}
+    # 混在文本里时按字符串拼接
+    assert interpolate("n=${{ n }}", {"n": 90}) == "n=90"
