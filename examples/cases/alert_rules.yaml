@@ -1,0 +1,60 @@
+﻿name: 告警规则 创建-查询-删除 闭环
+tags: [smoke, alert]
+vars:
+  rule_name: "caseforge-${{ timestamp }}"
+
+steps:
+  - name: 创建规则
+    request:
+      method: POST
+      path: /api/alert/rules
+      json:
+        name: "${{ rule_name }}"
+        metric: cpu
+        operator: ">"
+        threshold: 90
+    extract:
+      rule_id: $.id
+    assert:
+      - status: 201
+      - json_path: { path: $.enabled, equals: true }
+      - json_path: { path: $.threshold, equals: 90 }
+      - schema:
+          type: object
+          required: [id, name, metric, operator, threshold, enabled]
+          properties:
+            id: { type: string, pattern: "^r-\\d+$" }
+            threshold: { type: number, minimum: 0, maximum: 100 }
+
+  - name: 按 ID 查询，字段与创建时一致
+    request:
+      method: GET
+      path: /api/alert/rules/${{ rule_id }}
+    assert:
+      - status: 200
+      - json_path: { path: $.name, equals: "${{ rule_name }}" }
+      - max_time: { max_time_ms: 1000 }
+
+  - name: 列表包含该规则
+    request:
+      method: GET
+      path: /api/alert/rules
+    assert:
+      - status: 200
+      - json_path: { path: "$.items[*].id", contains: "${{ rule_id }}" }
+
+  - name: 删除规则
+    request:
+      method: DELETE
+      path: /api/alert/rules/${{ rule_id }}
+    assert:
+      - status: 204
+
+  - name: 删除后再查应为 404
+    request:
+      method: GET
+      path: /api/alert/rules/${{ rule_id }}
+    assert:
+      - status: 404
+      - json_path: { path: $.code, equals: RULE_NOT_FOUND }
+

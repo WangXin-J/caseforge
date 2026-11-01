@@ -1,0 +1,39 @@
+name: ci
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Unit & integration tests
+        run: pytest -q
+
+      - name: CLI 端到端（真起服务、真跑用例）
+        run: |
+          python examples/demo_server.py 8010 &
+          sleep 1
+          caseforge run examples/cases --base-url http://127.0.0.1:8010 --junit report.xml
+
+      - name: Upload JUnit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-report
+          path: report.xml
+          if-no-files-found: ignore

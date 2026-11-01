@@ -1,0 +1,32 @@
+name: 指标接口 参数校验与契约
+tags: [metrics]
+
+steps:
+  - name: 正常查询实时指标
+    request:
+      method: GET
+      path: /api/metrics/current
+      params:
+        hostId: h1
+    assert:
+      - status: 200
+      - header: { header: Content-Type, contains: application/json }
+      - json_path: { path: $.hostId, equals: h1 }
+      - json_path: { path: $.metrics.cpu, gt: 0 }
+      - json_path: { path: $.metrics.cpu, lt: 100 }
+      - schema:
+          type: object
+          required: [hostId, timestamp, metrics]
+          properties:
+            metrics:
+              type: object
+              required: [cpu, mem, disk, net]
+
+  - name: 缺少 hostId 应返回 400
+    request:
+      method: GET
+      path: /api/metrics/current
+    assert:
+      - status: 400
+      - json_path: { path: $.code, equals: INVALID_PARAM }
+      - json_path: { path: $.message, exists: true }
