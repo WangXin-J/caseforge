@@ -19,8 +19,9 @@ def test_whitespace_tolerant():
 
 
 def test_nested_structures():
+    """嵌套结构里的占位符同样保留原始类型。"""
     data = {"a": ["${{ n }}", {"b": "${{ n }}"}]}
-    assert interpolate(data, {"n": 1}) == {"a": ["1", {"b": "1"}]}
+    assert interpolate(data, {"n": 1}) == {"a": [1, {"b": 1}]}
 
 
 def test_missing_variable_raises():
