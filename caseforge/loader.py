@@ -35,12 +35,21 @@ def _parse_assertions(raw: Any, source: str) -> list[Assertion]:
         (kind, payload), = item.items()
         if kind not in _ASSERTION_KINDS:
             _fail(source, f"未知断言类型 {kind!r}，可用：{', '.join(_ASSERTION_KINDS)}")
-        if kind in ("status", "header", "max_time"):
-            if isinstance(payload, dict):
-                payload = {"status": payload} if kind == "status" else payload
-            raw_map = {"status": payload} if kind == "status" else (payload if isinstance(payload, dict) else {})
+
+        if kind == "status":
+            # `- status: 200` 或 `- status: [200, 201]`
+            raw_map = {"status": payload}
+        elif kind == "schema":
+            # `- schema: {...}`  整体就是 JSON Schema 本体，需要包一层
+            if not isinstance(payload, dict):
+                _fail(source, f"assert 第 {index + 1} 条 schema 必须是字典")
+            raw_map = {"schema": payload}
         else:
-            raw_map = payload if isinstance(payload, dict) else {}
+            # json_path / header / max_time：参数直接展开
+            if not isinstance(payload, dict):
+                _fail(source, f"assert 第 {index + 1} 条 {kind} 需要字典形式的参数")
+            raw_map = payload
+
         result.append(Assertion(kind=kind, raw=raw_map))
     return result
 

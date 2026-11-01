@@ -87,3 +87,31 @@ def test_load_cases_from_dir(tmp_path):
 def test_broken_yaml(tmp_path):
     with pytest.raises(CaseFormatError, match="YAML"):
         load_case(_write(tmp_path, "name: [unclosed\n"))
+
+
+def test_schema_assertion_is_wrapped(tmp_path):
+    """回归用例：schema 断言本体是 JSON Schema，解析时必须包一层 {"schema": ...}。"""
+    text = """
+name: x
+steps:
+  - name: a
+    request: { path: /x }
+    assert:
+      - schema: { type: object, required: [id] }
+"""
+    assertion = load_case(_write(tmp_path, text)).steps[0].assertions[0]
+    assert assertion.kind == "schema"
+    assert assertion.raw["schema"]["required"] == ["id"]
+
+
+def test_json_path_requires_mapping(tmp_path):
+    text = """
+name: x
+steps:
+  - name: a
+    request: { path: /x }
+    assert:
+      - json_path: not-a-mapping
+"""
+    with pytest.raises(CaseFormatError, match="json_path"):
+        load_case(_write(tmp_path, text))
