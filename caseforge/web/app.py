@@ -36,8 +36,9 @@ def create_app(db_path: str | Path = "report/caseforge.db", cases_path: str | Pa
     @app.get("/")
     def index(request: Request):
         return TEMPLATES.TemplateResponse(
+            request,
             "index.html",
-            {"request": request, "runs": store.list_runs(), "cases_path": app.state.cases_path},
+            {"runs": store.list_runs(), "cases_path": app.state.cases_path},
         )
 
     @app.get("/runs/{run_id}")
@@ -46,9 +47,9 @@ def create_app(db_path: str | Path = "report/caseforge.db", cases_path: str | Pa
         if not run:
             raise HTTPException(status_code=404, detail="执行记录不存在")
         return TEMPLATES.TemplateResponse(
+            request,
             "run.html",
             {
-                "request": request,
                 "run": run,
                 "cases": store.get_cases(run_id),
                 "failures": store.failure_summary(run_id),
