@@ -56,6 +56,29 @@ caseforge run examples/cases --base-url http://127.0.0.1:8010
 pytest -q
 ```
 
+## 执行看板
+
+命令行适合接 CI，但排查失败时更想有个页面。看板就是干这个的：
+
+```powershell
+pip install -e ".[web]"
+caseforge serve --port 8000 --db report/caseforge.db --cases examples/cases
+# 打开 http://127.0.0.1:8000
+```
+
+页面上填被测地址 → 发起执行 → 后台跑完自动落库 → 列表里能看到历史、通过/失败数、耗时，点进去是用例明细和**失败归因汇总**（这次失败是 `TIMEOUT` 还是 `SCHEMA_DRIFT`，一眼能看到）。
+
+也可以用 JSON API 接自己的流水线：
+
+| 接口 | 说明 |
+|---|---|
+| `POST /api/runs` | `{"baseUrl": "...", "workers": 1}` 发起执行，返回 run id |
+| `GET /api/runs` | 执行历史 |
+| `GET /api/runs/{id}` | 单次结果 + 用例明细 + 失败归因 |
+| `GET /api/health` | 健康检查 |
+
+数据存在 SQLite 里（默认 `report/caseforge.db`），没有外部依赖。
+
 ## 用例格式
 
 ```yaml
@@ -132,15 +155,20 @@ caseforge/
 │  ├─ assertions.py   # 断言求值
 │  ├─ jsonpath.py     # 极简 JSONPath（$.a.b、[0]、[*]）
 │  ├─ report.py       # 控制台 / JSON / JUnit XML
-│  └─ cli.py          # 命令行
+│  ├─ cli.py          # 命令行（run / serve）
+│  └─ web/            # 执行看板：FastAPI + SQLite + Jinja2
+│     ├─ app.py       # 路由、后台执行
+│     ├─ store.py     # 执行记录持久化
+│     └─ templates/   # 列表页、详情页
 ├─ examples/          # 演示服务 + 示例用例
-└─ tests/             # 引擎自身的测试（含真实 HTTP 集成测试）
+└─ tests/             # 引擎与看板的测试（含真实 HTTP 集成）
 ```
 
-两个刻意的设计：
+三个刻意的设计：
 
 1. **解析与替换分离**。`loader` 只校验结构，变量插值放到 `runner` 里做——因为变量依赖上一步的响应，加载阶段根本不知道值。
 2. **执行器兜住所有异常**。单条用例失败不能带崩整轮，所以最终是 `except Exception` 并转成归因类型；否则跑 200 条时中途崩掉，排查成本极高。
+3. **看板不重写执行逻辑**。`web` 层只做「存 + 展示」，执行仍然调 `run_suite`。同一份引擎，命令行和网页行为完全一致，不会出现两套结果。
 
 ## 和已有工具的关系
 
@@ -157,7 +185,8 @@ caseforge/
 - JSONPath 只支持 `$.a.b`、`[n]`、`[*]`，不支持过滤表达式（`[?(@.x>1)]`）；
 - 不支持 Cookie / OAuth 自动续期，需要的话在 `request.headers` 里手写；
 - 并发是线程级，够用但不适合压测场景（压测请用 LoadLab / JMeter）；
-- 报告没有 HTML 视图，JUnit XML 交给 CI 渲染。
+- 看板是单进程 SQLite，没做鉴权、多用户和定时调度 —— 它是给"跑完看一眼"用的，不是 Jenkins 的替代品；
+- 看板没有做分页，执行记录多了需要手动 `limit` 或加索引。
 
 ## License
 

@@ -25,11 +25,29 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--junit", dest="junit_out", help="把结果写成 JUnit XML（给 CI 用）")
     run.add_argument("--env", action="append", default=[], metavar="KEY=VALUE", help="注入全局变量")
     run.add_argument("-q", "--quiet", action="store_true", help="只输出汇总")
+
+    serve = sub.add_parser("serve", help="启动执行看板（需要额外安装 .[web]）")
+    serve.add_argument("--host", default="127.0.0.1")
+    serve.add_argument("--port", type=int, default=8000)
+    serve.add_argument("--db", default="report/caseforge.db", help="SQLite 路径")
+    serve.add_argument("--cases", default="examples/cases", help="用例目录")
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+
+    if args.command == "serve":
+        try:
+            import uvicorn
+        except ImportError:
+            print('启动看板需要先安装: pip install -e ".[web]"', file=sys.stderr)
+            return 2
+        from .web import create_app
+
+        print(f"CaseForge 看板: http://{args.host}:{args.port}")
+        uvicorn.run(create_app(args.db, args.cases), host=args.host, port=args.port)
+        return 0
 
     if args.command != "run":
         return 2

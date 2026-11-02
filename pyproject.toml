@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "caseforge"
-version = "0.1.0"
+version = "0.2.0"
 description = "声明式接口用例执行引擎：YAML 描述用例，变量串联，失败自动归因"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -16,13 +16,22 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0"]
+dev = ["pytest>=8.0", "httpx>=0.27"]
+web = [
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
+    "jinja2>=3.1",
+    "python-multipart>=0.0.9",
+]
 
 [project.scripts]
 caseforge = "caseforge.cli:main"
 
 [tool.setuptools]
-packages = ["caseforge"]
+packages = ["caseforge", "caseforge.web"]
+
+[tool.setuptools.package-data]
+"caseforge.web" = ["templates/*.html"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

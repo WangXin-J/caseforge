@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+{% if run.status == 'running' %}<meta http-equiv="refresh" content="2">{% endif %}
+<title>CaseForge · 执行 #{{ run.id }}</title>
+<style>
+  :root { --ink:#1b2430; --acc:#16456b; --muted:#7b8a99; --rule:#e3e9f0; --ok:#1f7a4d; --bad:#b3261e; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: -apple-system, "Microsoft YaHei", "Segoe UI", sans-serif; color:var(--ink); background:#f6f8fa; }
+  header { background:var(--acc); color:#fff; padding:16px 28px; }
+  header h1 { margin:0; font-size:18px; }
+  header a { color:#bcd3e6; font-size:12px; text-decoration:none; }
+  main { max-width:980px; margin:24px auto; padding:0 20px 60px; }
+  .card { background:#fff; border:1px solid var(--rule); border-radius:8px; padding:18px 20px; margin-bottom:20px; }
+  .card h2 { margin:0 0 14px; font-size:14px; color:var(--acc); }
+  .meta { display:flex; gap:26px; flex-wrap:wrap; font-size:13px; }
+  .meta div span { display:block; font-size:11px; color:var(--muted); margin-bottom:2px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { text-align:left; padding:9px 8px; border-bottom:1px solid var(--rule); vertical-align:top; }
+  th { font-size:12px; color:var(--muted); font-weight:500; }
+  td.num { font-variant-numeric: tabular-nums; }
+  .tag { display:inline-block; padding:1px 8px; border-radius:10px; font-size:11px; }
+  .tag.ok { background:#e6f4ec; color:var(--ok); }
+  .tag.bad { background:#fdecea; color:var(--bad); }
+  .tag.kind { background:#eef2f7; color:var(--acc); margin-right:6px; }
+  .steps { margin:6px 0 0; padding-left:16px; font-size:12px; color:#4a5867; }
+  .steps li { margin:3px 0; }
+  .err { color:var(--bad); }
+  details summary { cursor:pointer; color:var(--acc); font-size:12px; }
+  .empty { color:var(--muted); font-size:13px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>执行 #{{ run.id }}</h1>
+  <a href="/">← 返回执行历史</a>
+</header>
+<main>
+  <div class="card">
+    <h2>概览</h2>
+    <div class="meta">
+      <div><span>被测地址</span>{{ run.base_url }}</div>
+      <div><span>开始时间</span>{{ run.started_at.replace('T',' ').replace('+00:00','') }}</div>
+      <div><span>状态</span>
+        {% if run.status == 'completed' %}<span class="tag ok">完成</span>
+        {% elif run.status == 'failed' %}<span class="tag bad">出错</span>
+        {% else %}<span class="tag run">执行中…</span>{% endif %}
+      </div>
+      <div><span>用例</span>{{ run.total }} 条（通过 {{ run.passed }} / 失败 {{ run.failed }}）</div>
+      <div><span>耗时</span>{{ (run.duration_ms / 1000) | round(2) }}s</div>
+    </div>
+    {% if run.error %}<p class="err" style="margin-top:14px">执行出错：{{ run.error }}</p>{% endif %}
+  </div>
+
+  {% if failures %}
+  <div class="card">
+    <h2>失败归因</h2>
+    {% for kind, count in failures.items() %}
+      <span class="tag kind">{{ kind }} × {{ count }}</span>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="card">
+    <h2>用例明细</h2>
+    {% if cases %}
+    <table>
+      <tr><th>用例</th><th>结果</th><th>耗时</th><th>失败类型</th></tr>
+      {% for c in cases %}
+      <tr>
+        <td>
+          <details {% if not c.ok %}open{% endif %}>
+            <summary>{{ c.name }}</summary>
+            <ol class="steps">
+              {% for s in c.steps %}
+              <li>
+                {% if s.ok %}✓{% else %}<span class="err">✗</span>{% endif %}
+                {{ s.name }}　<span style="color:#7b8a99">{{ s.status or '-' }}　{{ s.elapsed_ms }}ms</span>
+                {% if s.failure_type %}　<span class="tag bad">{{ s.failure_type }}</span>{% endif %}
+                {% if s.error %}<br><span class="err">{{ s.error }}</span>{% endif %}
+              </li>
+              {% endfor %}
+            </ol>
+          </details>
+        </td>
+        <td>{% if c.ok %}<span class="tag ok">通过</span>{% else %}<span class="tag bad">失败</span>{% endif %}</td>
+        <td class="num">{{ c.duration_ms }}ms</td>
+        <td>{% for t in c.failure_types %}<span class="tag bad">{{ t }}</span> {% endfor %}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}
+      <div class="empty">{% if run.status == 'running' %}执行中，稍候自动刷新…{% else %}没有用例结果{% endif %}</div>
+    {% endif %}
+  </div>
+</main>
+</body>
+</html>

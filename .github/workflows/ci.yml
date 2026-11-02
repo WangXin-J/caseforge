@@ -19,7 +19,7 @@ jobs:
       - name: Install
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          pip install -e ".[dev,web]"
 
       - name: Unit & integration tests
         run: pytest -q
@@ -29,6 +29,29 @@ jobs:
           python examples/demo_server.py 8010 &
           sleep 1
           caseforge run examples/cases --base-url http://127.0.0.1:8010 --junit report.xml
+
+      - name: 看板端到端（起服务 → 发起执行 → 查结果）
+        run: |
+          mkdir -p report
+          python examples/demo_server.py 8010 &
+          sleep 1
+          caseforge serve --port 8000 --db report/ui.db --cases examples/cases &
+          sleep 4
+          curl -s -X POST http://127.0.0.1:8000/api/runs \
+               -H "Content-Type: application/json" \
+               -d '{"baseUrl":"http://127.0.0.1:8010"}' > report/run.json
+          cat report/run.json
+          RUN_ID=$(python -c "import json;print(json.load(open('report/run.json'))['id'])")
+          sleep 2
+          curl -s "http://127.0.0.1:8000/api/runs/$RUN_ID" | python -c "
+          import json,sys
+          d=json.load(sys.stdin)
+          run=d['run']
+          print('status =', run['status'], '| total =', run['total'], '| passed =', run['passed'])
+          assert run['status']=='completed', run
+          assert run['passed']==2, run
+          "
+          curl -s http://127.0.0.1:8000/ | grep -q "执行看板"
 
       - name: Upload JUnit report
         if: always()
